@@ -1,0 +1,141 @@
+# Pakistan Blast Risk Analysis & Quadtree Dashboard
+
+**Project Overview**
+This project is a high-performance spatial analysis tool designed to identify, visualize, and forecast high-risk zones for suicide blasts across Pakistan. By utilizing a *Quadtree Data Structure*, the program recursively partitions geographical data into optimized "cells" based on incident density. Unlike standard heatmaps, this approach allows for dynamic spatial querying and a mathematically transparent "Heuristic Risk Score" that evaluates areas based on historical frequency, recent trends, and human impact—all without the "black box" of machine learning.
+
+===================
+  *data_utils.py* 
+===================
+WHAT THIS FILE DOES:
+  Reads the raw CSV file from disk, removes columns we don't
+  need, fixes messy/broken values, and hands back a clean
+  table (called a DataFrame) that the rest of the project
+  can safely use.
+
+  No machine learning here. No encoding. No sklearn.
+  We only keep the columns that the Quadtree and the risk
+  heuristic actually need:
+
+    Latitude, Longitude  — to place each incident on the map
+    Year                 — for recency weighting
+    Province             — for labels and demo mode
+    Killed Max           — for the severity part of the score
+    Injured Max          — extra context shown to the user
+    Location Category    — shown in the risk profile report
+    Target Type          — shown in the risk profile report
+
+DATA FLOW:
+  CSV file on disk
+       |
+       v
+  load_and_clean_data()   <- you are here
+       |
+       v
+  clean DataFrame  --->  spatial_engine.py  (builds the Quadtree)
+                   --->  risk_calculator.py (scores every cell)
+                   --->  main_app.py        (shows results to user)
+
+==================================================================================================================================
+
+=======================
+  *spatial_engine.py* 
+=======================
+
+How a node is stored:
+  Every cell (called a "node") is just a Python dictionary:
+  {
+    "lat_min"  : float   southern edge of this cell
+    "lat_max"  : float   northern edge
+    "lon_min"  : float   western edge
+    "lon_max"  : float   eastern edge
+    "depth"    : int     0 = the whole country, 6 = smallest cell
+    "cell_id"  : int     unique ID number (assigned after building)
+    "incidents": list    list of incident dicts stored in this cell
+    "children" : list    4 child dicts if this cell was split, else []
+  }
+
+How an incident is stored:
+  Each incident inside a node is also a Python dictionary:
+  {
+    "row_idx"  : int     row number from the original DataFrame
+    "lat"      : float   GPS latitude
+    "lon"      : float   GPS longitude
+    "year"     : int     year the blast happened
+    "label"    : str     province name
+    "killed"   : float   Killed Max from the dataset
+    "injured"  : float   Injured Max from the dataset
+  }
+
+CRUD Operations (Create, Read, Update, Delete):
+  CREATE  ->  insert_incident(), build_quadtree()
+  READ    ->  find_leaf_node(), get_all_leaf_nodes(), get_incidents_in_region(), count_incidents()
+  UPDATE  ->  update_incident()
+  DELETE  ->  delete_incident()
+
+
+==================================================================================================================================
+
+========================
+  *risk_calculator.py* 
+========================
+Formula to calculate risk: SCORE = (Density_Score + Depth_Score + Recency_Score + Severity_Score)   capped at 100
+
+  1. DENSITY SCORE  (max 40 points)
+     Counts how many incidents are packed into this cell.
+     Smaller cell + more incidents = higher score.
+     Formula:  min(count * 5,  40)
+
+  2. DEPTH SCORE  (max 20 points)
+     A deep cell means the tree HAD to split many times to
+     fit the incidents — so the area is a chronic hotspot.
+     Formula:  min(depth * 3,  20)
+
+  3. RECENCY SCORE  (max 25 points)
+     Incidents from the last 2 years count DOUBLE compared
+     to incidents from long ago.
+     Formula:  min(recent_count * 4  +  old_count * 2,  25)
+
+  4. SEVERITY SCORE  (max 15 points)
+     Total people killed in this cell.  
+     More deaths = higher risk of future severity.
+     Formula:  min(total_killed * 0.1,  15)
+
+RISK BANDS (for colour coding):
+  80–100  CRITICAL  (dark red)
+  60–79   HIGH      (red)
+  40–59   MEDIUM    (orange)
+  20–39   LOW       (yellow)
+   0–19   MINIMAL   (green)
+
+TREND FORECAST:
+  Compares incident counts across 3 time windows.
+  If count is rising   →  "ESCALATING"
+  If count is falling  →  "DE-ESCALATING"
+  If roughly stable    →  "STABLE"
+
+DATA FLOW:
+  spatial_engine.py (Quadtree root)
+       |
+       v
+  calculate_node_risk(node, current_year)   -> score 0..100
+  get_risk_band(score)                       -> label + colour
+  get_risk_profile(node, current_year)       -> full stats dict
+  calculate_all_cell_risks(root, year)       -> {cell_id: score}
+  get_trend(node, current_year)              -> trend string
+  generate_forecast_frames(root, ...)        -> PNG files
+
+==================================================================================================================================
+
+=============================
+  *gui_app.py: Tkinter GUI* 
+=============================
+WHAT THIS FILE DOES:
+    Opens a graphical window with 4 tabs:
+      1. MAP        — live Quadtree map, click any cell to read it
+      2. CRUD       — Add, Update, Delete incidents with live map refresh
+      3. FORECAST   — 5-year risk prediction per cell
+      4. STATS      — Summary numbers and top-10 risk table
+
+
+*HOW TO RUN:*
+    python gui_app.py
