@@ -23,7 +23,6 @@ import risk_calculator as rc
 # =============================================================
 # GLOBAL STATE
 # All shared data lives here as plain module-level variables.
-# No classes needed — we just pass these variables to functions.
 # =============================================================
 
 CSV_PATH     = "suicide-blasts-dataset.csv"
