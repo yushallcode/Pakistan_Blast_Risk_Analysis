@@ -1,5 +1,8 @@
 # Pakistan Blast Risk Analysis & Quadtree Dashboard
 
+*HOW TO RUN:*
+    python gui_app.py
+
 **Project Overview**
 This project is a high-performance spatial analysis tool designed to identify, visualize, and forecast high-risk zones for suicide blasts across Pakistan. By utilizing a *Quadtree Data Structure*, the program recursively partitions geographical data into optimized "cells" based on incident density. Unlike standard heatmaps, this approach allows for dynamic spatial querying and a mathematically transparent "Heuristic Risk Score" that evaluates areas based on historical frequency, recent trends, and human impact—all without the "black box" of machine learning.
 
@@ -137,5 +140,3 @@ WHAT THIS FILE DOES:
       4. STATS      — Summary numbers and top-10 risk table
 
 
-*HOW TO RUN:*
-    python gui_app.py
